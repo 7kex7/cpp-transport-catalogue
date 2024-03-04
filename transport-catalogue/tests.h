@@ -11,7 +11,7 @@
 
 class TestCatalogue {
 public:
-    void tsZERO_caseZERO();
-    void tsA_case1();
-    void tsA_case2();
+    void tsC_case0();
+    void tsC_case1();
+    void tsC_case2();
 };

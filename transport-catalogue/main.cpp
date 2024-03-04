@@ -13,26 +13,10 @@ using t_c::TransportCatalogue;
 int main() {
     TransportCatalogue catalogue;
 
-    int base_request_count;
-    cin >> base_request_count >> ws;
+    InputReader inp;
+    inp.ReadData(cin, catalogue);
 
-    {
-        InputReader reader;
-        for (int i = 0; i < base_request_count; ++i) {
-            string line;
-            getline(cin, line);
-            reader.ParseLine(line);
-        }
-        reader.ApplyCommands(catalogue);
-    }
-
-    int stat_request_count;
-    cin >> stat_request_count >> ws;
-    for (int i = 0; i < stat_request_count; ++i) {
-        string line;
-        getline(cin, line);
-        ParseAndPrintStat(catalogue, line, cout);
-    }
+    ProcessRequest(cin, cout, catalogue);
 }
 
 // #include <iostream>
@@ -42,5 +26,7 @@ int main() {
 
 // int main() {
 //     TestCatalogue tests;
-//     tests.tsZERO_caseZERO();
+//     tests.tsC_case0();
+//     tests.tsC_case1();
+//     // tests.tsC_case2();
 // }

@@ -4,6 +4,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -11,7 +12,7 @@
 
 #include "geo.h"
 
-namespace t_c {
+namespace t_c {     
 
 struct Stop {
     Stop() {}
@@ -42,42 +43,34 @@ struct Bus {
 
 struct BusInfo {
     BusInfo() {}
-    BusInfo(const std::string_view& n, int r, int u, double l)
-    : name(move(n)), route_count(r), unique_count(u), length(l) {}
+    BusInfo(const std::string_view& n, int r, int u, double l, double c)
+    : name(move(n)), route_count(r), unique_count(u), length(l), curvature(c) {}
 
     std::string_view name;
     int route_count = 0;
     int unique_count = 0;
     double length = 0;
+    double curvature = 0; 
 };
 
 
 class TransportCatalogue {
 public:
-    void AddStop(const Stop& stop);
+    void AddDistance(Stop* from_stop, Stop* to_stop, const double distance);
+    double FindDistance(Stop* first, Stop* second) const;
+    Stop* AddStop(const Stop& stop);
     Stop& FindStop(const std::string_view& stopnm) const;
     void AddBus(const Bus& bus);
     Bus& FindBus(const std::string_view& bus) const;
     BusInfo GetBusInfo(const std::string_view& bus) const;
 
-    // class DistanceHasher {
-    // static const size_t N = 57620UL;
-    // public:
-    //     size_t operator()(const std::pair<Stop*, Stop*>& element) const {
-    //         // size_t hash = std::hash<std::string_view>{}(element.first->name);
-    //         // hash *= std::hash<double>{}(element.second->coordinates.lat) + std::hash<double>{}(element.first->coordinates.lng) * N;
-    //         // hash ^= (std::hash<std::string_view>{}(element.second->name) >> 2);
-    //         // hash *= std::hash<double>{}(element.second->coordinates.lng) * std::hash<double>{}(element.first->coordinates.lat);
-    //         // return hash;
-    //         size_t hash = std::hash<std::string_view>{}(element.first->name);
-    //         hash += std::hash<std::string_view>{}(element.second->name);
-    //         return hash;
-    //     }
-    // };
-
-    struct StopPtrHasher {
-        size_t operator()(const Stop* stop) const {
-            return (size_t)stop;
+    class DistanceHasher {
+    static const size_t N = 576UL;
+    public:
+        size_t operator()(const std::pair<Stop*, Stop*>& element) const {
+            size_t hash = std::hash<const void*>{}(element.first);            
+            hash += std::hash<const void*>{}(element.second);
+            return hash;
         }
     };
 
@@ -86,7 +79,7 @@ private:
     std::unordered_map<std::string_view, Stop*> stopname_to_stop_;
     std::deque<Bus> buses_;
     std::unordered_map<std::string_view, Bus*> busname_to_bus_;
-    // std::unordered_map<std::pair<Stop*, Stop*>, double, DistanceHasher> distances_;
+    std::unordered_map<std::pair<Stop*, Stop*>, double, DistanceHasher> distances_;
 };
 
 } // t_c

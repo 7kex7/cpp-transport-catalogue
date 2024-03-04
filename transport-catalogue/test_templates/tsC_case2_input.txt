@@ -1,0 +1,7 @@
+4
+Stop A: 55.632761, 37.333324, 9500m to C
+Stop B: 55.574371, 37.6517, 7500m to A
+Stop C: 55.581065, 37.64839, 750m to B
+Bus ABC: A > B > C > A
+1
+Bus ABC

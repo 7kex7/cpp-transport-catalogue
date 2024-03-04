@@ -5,15 +5,15 @@ using namespace i_r;
 using namespace o_r;
 using t_c::TransportCatalogue;
 
-bool CompareStrings(const std::string& str1, const std::string& str2) {
-    // if (str1.size() != str2.size()) {
-    //     cerr << "size of strings fault: " << str1.size() << " and " << str2.size() << endl;
-    //     return false;
-    // }
+bool CompareAnswers(const std::string& prog_res, const std::string& exp_res) {
+    if (prog_res.size() != exp_res.size()) {
+        cerr << "Size of answers fault. Program size is " << prog_res.size() << " vs expected " << exp_res.size() << '\n';
+        return false;
+    }
 
-    for (size_t i = 0; i < str1.size(); ++i) {
-        if (str1[i] != str2[i]) {
-            cerr << "Strings differ at position " << i << ": '" << str1[i] << "' vs '" << str2[i] << "'\n";
+    for (size_t i = 0; i < prog_res.size(); ++i) {
+        if (prog_res[i] != exp_res[i]) {
+            cerr << "Answers differ at position " << i << ": '" << prog_res[i] << "' vs '" << exp_res[i] << "'\n";
             return false;
         }
     }
@@ -38,37 +38,24 @@ bool TestsTemplate(const string& in_filename, const string& res_filename) {
     }
 
     TransportCatalogue catalogue;
-    int base_request_count;
-    input >> base_request_count >> ws;
-    {
-        InputReader reader;
-        for (int i = 0; i < base_request_count; ++i) {
-            string line;
-            getline(input, line);
-            reader.ParseLine(line);
-        }
-        reader.ApplyCommands(catalogue);
-    }
 
-    // do calculations from input file data
+    InputReader inp;
+    inp.ReadData(input, catalogue);
+
+    // get and process requests
     ostringstream program_result;
-    int stat_request_count;
-    input >> stat_request_count >> ws;
-    for (int i = 0; i < stat_request_count; ++i) {
-        string line;
-        getline(input, line);
-        ParseAndPrintStat(catalogue, line, program_result);
-    }
-    input.close();
+    ProcessRequest(input, program_result, catalogue);
 
-    // get correct result from file
+    // read correct result from file (res_filename)
     string correct_output_str, line;
     while (getline(correct_output, line)) {
         correct_output_str += line + "\n";
     }
 
+    // read result of program
     string program_result_str = program_result.str();
 
+    // write both results in files for next comparation
     {
         ofstream file_result_of_program("./results/program_result.txt");
         file_result_of_program << program_result_str;
@@ -82,29 +69,30 @@ bool TestsTemplate(const string& in_filename, const string& res_filename) {
 
     correct_output.close();
 
-    return CompareStrings(program_result_str, correct_output_str);
+    // compare program answer and expected output (res_filename)
+    return CompareAnswers(program_result_str, correct_output_str);
 }
 
-void TestCatalogue::tsZERO_caseZERO() {
-    if (TestsTemplate("./test_templates/tsZERO_caseZERO_input.txt", "./test_templates/tsZERO_caseZERO_output.txt")) {
+void TestCatalogue::tsC_case0() {
+    if (TestsTemplate("./test_templates/tsC_case0_input.txt", "./test_templates/tsC_case0_output.txt")) {
         cerr << "test 0, case 0 PASSED" << endl;
     } else {
         cerr << "test 0, case 0 FAILED" << endl;
     }
 }
 
-void TestCatalogue::tsA_case1() {
-    if (TestsTemplate("./test_templates/tsA_case1_input.txt", "./test_templates/tsA_case1_output.txt")) {
-        cerr << "test A, case 1 PASSED" << endl;
+void TestCatalogue::tsC_case1() {
+    if (TestsTemplate("./test_templates/tsC_case1_input.txt", "./test_templates/tsC_case1_output1.txt")) {
+        cerr << "test C, case 1 PASSED" << endl;
     } else {
-        cerr << "test A, case 1 FAILED" << endl;
+        cerr << "test C, case 1 FAILED" << endl;
     }
 }
 
-void TestCatalogue::tsA_case2() {
-    if (TestsTemplate("./test_templates/tsA_case2_input.txt", "./test_templates/tsA_case2_output.txt")) {
-        cerr << "test A, case 2 PASSED" << endl;
+void TestCatalogue::tsC_case2() {
+    if (TestsTemplate("./test_templates/tsC_case2_input.txt", "./test_templates/tsC_case2_output.txt")) {
+        cerr << "test C, case 2 PASSED" << endl;
     } else {
-        cerr << "test A, case 2 FAILED" << endl;
+        cerr << "test C, case 2 FAILED" << endl;
     }
 }

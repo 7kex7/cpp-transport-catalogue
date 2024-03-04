@@ -1,30 +1,21 @@
 #include "input_reader.h"
 
-#include <algorithm>
-#include <cassert>
-#include <charconv>
-
+using namespace std::literals;
+ 
 namespace i_r {
 
-/**
- * Парсит строку вида "10.123,  -30.1837" и возвращает пару координат (широта, долгота)
-*/
-Coordinates ParseCoordinates(std::string_view str) {
-    static const double nan = std::nan("");
+void InputReader::ReadData(std::istream& input, t_c::TransportCatalogue& catalogue) {
+    int base_request_count;
+    input >> base_request_count >> std::ws;
 
-    auto not_space = str.find_first_not_of(' ');
-    auto comma = str.find(',');
-
-    if (comma == str.npos) {
-        return {nan, nan};
+    {
+        for (int i = 0; i < base_request_count; ++i) {
+            std::string line;
+            getline(input, line);
+            this->ParseLine(line);
+        }
+        this->ApplyCommands(catalogue);
     }
-
-    auto not_space2 = str.find_first_not_of(' ', comma + 1);
-
-    double lat = std::stod(std::string(str.substr(not_space, comma - not_space)));
-    double lng = std::stod(std::string(str.substr(not_space2)));
-
-    return {lat, lng};
 }
 
 /**
@@ -104,25 +95,99 @@ void InputReader::ParseLine(std::string_view line) {
     }
 }
 
-void InputReader::ApplyCommands([[maybe_unused]] t_c::TransportCatalogue& catalogue) const {
-    std::vector<CommandDescription*> other_commands; 
-    std::unordered_map<std::string_view, std::vector<std::string_view>> bus_commands;
+/**
+ * Парсит строку вида "10.123,  -30.1837" и возвращает пару координат (широта, долгота)
+*/
+Coordinates ParseCoordinates(std::string_view& str) {
+    static const double nan = std::nan("");
 
-    for (auto cmd = commands_.begin(); cmd != commands_.end(); ++cmd) {
-        if (cmd->command == "Stop") {
-            catalogue.AddStop(t_c::Stop(cmd->id, ParseCoordinates(cmd->description)));
-        } else if (cmd->command == "Bus") {
-            std::vector<std::string_view> route = ParseRoute(cmd->description);
-            bus_commands[cmd->id] = route;
+    auto not_space = str.find_first_not_of(' ');
+    auto comma = str.find(',');
+
+    if (comma == str.npos) {
+        return {nan, nan};
+    }
+
+    auto not_space2 = str.find_first_not_of(' ', comma + 1);
+    auto comma2 = str.find(' ', not_space2);
+
+    const double lat = std::stod(std::string(str.substr(not_space, comma - not_space)));
+    const double lng = std::stod(std::string(str.substr(not_space2, comma2 - not_space2)));
+
+    return {lat, lng};
+}
+
+double GetMeters(std::string_view distance) {
+    std::string_view meters = distance.substr(0, distance.find(' '));
+    return std::stod(std::string(meters.substr(0, meters.size() - 1)));
+}
+
+std::string_view GetStopName(std::string_view distance) {
+    size_t first_space = distance.find(' ');
+    size_t sec_space = distance.find(' ', first_space + 1);
+    std::string_view stopnm = distance.substr(sec_space + 1, distance.size() - sec_space);
+    return stopnm;
+}
+
+void ApplyDistances(const CommandDescription& cmd
+                , t_c::TransportCatalogue& catalogue) {
+    t_c::Stop* from_stop = &catalogue.FindStop(cmd.id);
+    std::string_view description = cmd.description;
+    size_t first_comma = description.find(',');
+    size_t current_comma = description.find(',', first_comma + 1);
+
+    while (current_comma != description.npos) {
+        size_t first_after_comma = current_comma + 1;
+        size_t next_comma = description.find(',', first_after_comma);
+
+        std::string_view distance;
+        if (next_comma == description.npos) {
+            distance = description.substr(first_after_comma, description.size() - first_after_comma);
+        } else {
+            distance = description.substr(first_after_comma, next_comma - first_after_comma);
+        }
+        // get meters
+        distance = Trim(distance);
+
+        double meters = GetMeters(distance);
+        // get stop
+        t_c::Stop* to_stop = &catalogue.FindStop(GetStopName(distance));
+
+        catalogue.AddDistance(from_stop, to_stop, meters);
+        current_comma = next_comma;
+    }
+}
+
+void InputReader::ApplyCommands([[maybe_unused]] t_c::TransportCatalogue& catalogue) const {
+    std::vector<CommandDescription> bus_cmds;
+
+    // apply stops and get buses in container
+    for (const auto& cmd : commands_) {
+        if (cmd.command == "Bus"s) {
+            bus_cmds.push_back(cmd);
+        } else {
+            std::string_view description = cmd.description;
+            Coordinates coords = ParseCoordinates(description);
+            catalogue.AddStop(t_c::Stop(cmd.id, coords));
         }
     }
 
-    for (const auto& [busnm, stops] : bus_commands) {
-        std::vector<t_c::Stop*> route;
-        for (const std::string_view& stop : stops) {
-            route.push_back(&catalogue.FindStop(stop));
+    // add buses
+    for (const auto& bus_cmd : bus_cmds) {
+        std::vector<std::string_view> route = ParseRoute(bus_cmd.description);
+        std::vector<t_c::Stop*> stops(route.size());
+        for (size_t i = 0; i < route.size(); ++i) {
+            stops[i] = &catalogue.FindStop(route[i]);
         }
-        catalogue.AddBus(t_c::Bus(busnm, route));
+        catalogue.AddBus(t_c::Bus(bus_cmd.id, stops));
+    }
+
+    // add distances
+    for (const auto& cmd : commands_) {
+        if (cmd.command != "Stop"s) {
+            continue;
+        }
+        ApplyDistances(cmd, catalogue);
     }
 }
 

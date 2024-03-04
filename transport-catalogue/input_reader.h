@@ -1,8 +1,12 @@
 #pragma once
 #include <string>
+#include <iostream>
 #include <string_view>
 #include <vector>
 #include <cmath>
+#include <algorithm>
+#include <cassert>
+#include <unordered_map>
 
 #include "geo.h"
 #include "transport_catalogue.h"
@@ -27,6 +31,12 @@ struct CommandDescription {
 
 class InputReader {
 public:
+
+    /**
+     * Точка входа данных
+    */
+    void ReadData(std::istream& input, t_c::TransportCatalogue& catalogue);
+
     /**
      * Парсит строку в структуру CommandDescription и сохраняет результат в commands_
     */
@@ -36,6 +46,7 @@ public:
      * Наполняет данными транспортный справочник, используя команды из commands_
     */
     void ApplyCommands(t_c::TransportCatalogue& catalogue) const;
+
 
 private:
     std::vector<CommandDescription> commands_;
