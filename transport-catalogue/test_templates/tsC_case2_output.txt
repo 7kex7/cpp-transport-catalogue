@@ -1,1 +1,0 @@
-Bus ABC: 4 stops on route, 3 unique stops, 17750 route length, 0.418565 curvature

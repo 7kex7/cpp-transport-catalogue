@@ -1,32 +1,19 @@
 #include <iostream>
-#include <string>
-
-#include "input_reader.h"
-#include "stat_reader.h"
+#include <fstream>
+#include "json_reader.h"
 #include "transport_catalogue.h"
 
 using namespace std;
-using namespace i_r;
-using namespace o_r;
-using t_c::TransportCatalogue;
+using namespace t_c;
 
 int main() {
+    // ifstream input_file("./input/input.json");
+    // ofstream output_file("./output/output.json");
+    // TransportCatalogue catalogue;
+    // json_reader::LoadJSON(input_file, output_file, catalogue);
+    // input_file.close();
+    // output_file.close();
+
     TransportCatalogue catalogue;
-
-    InputReader inp;
-    inp.ReadData(cin, catalogue);
-
-    ProcessRequest(cin, cout, catalogue);
+    json_reader::LoadJSON(cin, cout, catalogue);
 }
-
-// #include <iostream>
-// #include "tests.h"
-
-// using namespace std;
-
-// int main() {
-//     TestCatalogue tests;
-//     tests.tsC_case0();
-//     tests.tsC_case1();
-//     // tests.tsC_case2();
-// }
