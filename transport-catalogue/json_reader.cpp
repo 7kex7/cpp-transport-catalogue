@@ -3,13 +3,18 @@
 using namespace domain;
 using namespace json;
 using namespace renderer;
+using namespace t_c;
 using namespace std::literals;
 
 namespace json_reader {
 
-/* --------------- FillRequests --------------- */
 FillRequests::FillRequests(t_c::TransportCatalogue& db) 
     : db_(db) {
+}
+
+StatRequests::StatRequests(const t_c::TransportCatalogue& db
+                    , const renderer::MapRenderer& renderer, Builder& builder)
+    : RequestHandler(db, renderer), builder_(builder) {
 }
 
 void FillRequests::LoadBusReq(const Dict& req) {
@@ -38,7 +43,7 @@ void FillRequests::LoadStopReq(const Dict& req) {
 
     StopData stop{name, latitude, longitude};
 
-    const Dict dists_dict = req.at("road_distances").AsMap();
+    const Dict dists_dict = req.at("road_distances").AsDict();
     for (const auto& [stop_name, dist] : dists_dict) {
         stop.road_distances.insert({stop_name, dist.AsDouble()});
     }
@@ -57,11 +62,11 @@ void FillRequests::ApplyDistances(Stop& from_stop , RoadDistances& road_distance
 void FillRequests::ProcessBaseRequests(const Array& arr_reqs) {
     for (const Node& node_map : arr_reqs) {
 
-        const std::string type = node_map.AsMap().at("type").AsString();
+        const std::string type = node_map.AsDict().at("type").AsString();
         if (type == "Bus") {
-            LoadBusReq(node_map.AsMap());
+            LoadBusReq(node_map.AsDict());
         } else if (type == "Stop") {
-            LoadStopReq(node_map.AsMap());
+            LoadStopReq(node_map.AsDict());
         } else {
             throw std::invalid_argument("wrong request type");
         }
@@ -145,94 +150,93 @@ void FillRequests::ProcessRenderRequests(const Dict& render_settings
     }
 }
 
-/* --------------- StatRequests --------------- */
-StatRequests::StatRequests(const t_c::TransportCatalogue& db
-                    , const renderer::MapRenderer& renderer)
-    : RequestHandler(db, renderer) {
-}
+// stat requests
+void StatRequests::HandleBusRequest(const Dict& req) {
+    using namespace std::literals;
 
-Node StatRequests::HandleBusRequest(const Dict& req) {
-    Dict result;
+    builder_.StartDict();
     
     const int id = req.at("id").AsInt();
-    result.insert({"request_id"s, Node(id)});
-    
+    builder_.Key("request_id"s).Value(id); 
+
     const std::string busnm = req.at("name").AsString();
     std::optional<BusStat> stat = GetBusStat(busnm);
     if (stat.has_value()) {
-        result.insert({"curvature"s, Node(stat->curvature)});
-        result.insert({"route_length"s, Node(stat->length)});
-        result.insert({"stop_count"s, Node(stat->stop_count)});
-        result.insert({"unique_stop_count"s, Node(stat->unique_count)});
+        builder_.Key("curvature"s).Value(stat->curvature)
+        .Key("route_length"s).Value(stat->length)
+        .Key("stop_count"s).Value(stat->stop_count)
+        .Key("unique_stop_count"s).Value(stat->unique_count);
     } else {
-        result.insert({"error_message"s, Node("not found"s)});
+        builder_.Key("error_message"s).Value("not found"s);
     }
-    
-    return Node(result);
+    builder_.EndDict();
 }
 
-Array GetSortedBuses(const std::unordered_set<Bus*> routes) {
+std::set<std::string> GetSortedBuses(const std::unordered_set<Bus*> routes) {
     std::set<std::string> set_buses;
     for (const auto& bus_ptr : routes) {
         set_buses.insert(bus_ptr->name);
     }
-    // std::sort(arr_buses.begin(), arr_buses.end());
 
-    Array arr_buses;
-    for (const auto& bus : set_buses) {
-        arr_buses.push_back(bus);
-    }
-    return arr_buses;
+    return set_buses;
 }
 
-Node StatRequests::HandleStopRequest(const Dict& req) {
-    Dict result;
-    
+void StatRequests::HandleStopRequest(const Dict& req) {
+    using namespace std::literals;
+
+    builder_.StartDict();
+
     const int id = req.at("id").AsInt();
-    result.insert({"request_id"s, Node(id)});
+    builder_.Key("request_id"s).Value(id);
 
     const std::string stopnm = req.at("name").AsString();
     std::optional<const std::unordered_set<Bus*>*> routes = GetBusesByStop(stopnm);
     if (!routes.has_value()) {
-        result.insert({"error_message"s, Node("not found"s)});
-        return Node(result);
+        builder_.Key("error_message"s).Value("not found"s);
+    } else {
+        std::set<std::string> buses = GetSortedBuses(*routes.value());
+        builder_.Key("buses"s).StartArray();
+        for (const auto& bus : buses) {
+            builder_.Value(bus);
+        }
+        builder_.EndArray();
     }
-    Array buses = GetSortedBuses(*routes.value());
-    result.insert({"buses"s, Node(buses)});
 
-    return Node(result);
+    builder_.EndDict();
 }
 
-json::Node StatRequests::HandleMapRequest(const json::Dict& req) {
-    Dict result;
+void StatRequests::HandleMapRequest(const json::Dict& req) {
+    using namespace std::literals;
+
+    builder_.StartDict();
 
     const int id = req.at("id").AsInt();
-    result.insert({"request_id"s, id});
+    builder_.Key("request_id"s).Value(id);
 
     std::ostringstream os;
     RenderMap(os);
-    Node svg_nd(os.str());
-    result.insert({"map"s, svg_nd});
+    builder_.Key("map"s).Value(os.str());
 
-    return Node(result);
+    builder_.EndDict();
 }
 
 void StatRequests::PrintJsonDocument(const Array& arr_reqs, std::ostream& output) {
-    Array output_node;
-    output_node.reserve(arr_reqs.size());
+    using namespace std::literals;
+    builder_.StartArray();
     for (const Node& req : arr_reqs) {
-        const std::string type = req.AsMap().at("type").AsString();
+        const std::string type = req.AsDict().at("type").AsString();
         if (type == "Bus"s) {
-            output_node.push_back(HandleBusRequest(req.AsMap()));
+            HandleBusRequest(req.AsDict());
         } else if (type == "Stop"s) {
-            output_node.push_back(HandleStopRequest(req.AsMap()));
+            HandleStopRequest(req.AsDict());
         } else if (type == "Map"s) {
-            output_node.push_back(HandleMapRequest(req.AsMap()));
+            HandleMapRequest(req.AsDict());
         } else {
             throw std::invalid_argument("wrong request type");
         }
     }
-    Document out_document(output_node);
+    builder_.EndArray();
+    Document out_document(builder_.Build());
     Print(out_document, output);
 }
 
@@ -247,7 +251,7 @@ std::vector<geo::Coordinates> GetAllCoordinates(const std::unordered_map<std::st
     return coords;
 }
 
-SphereProjector MakeProjector(const t_c::TransportCatalogue& db, const RenderSettings& settings) {
+SphereProjector MakeProjector(const TransportCatalogue& db, const RenderSettings& settings) {
     const std::unordered_map<std::string_view, Stop*>& stops = db.GetAllStops();
     std::vector<geo::Coordinates> coords = GetAllCoordinates(stops);
     
@@ -261,32 +265,32 @@ SphereProjector MakeProjector(const t_c::TransportCatalogue& db, const RenderSet
     return proj;
 }
 
-/* --------------- Load --------------- */
-void LoadJSON(std::istream& input, std::ostream& output, t_c::TransportCatalogue& catalogue) {
+void LoadJSON(std::istream& input, std::ostream& output, TransportCatalogue& catalogue) {
     const Document json_document = Load(input);
-    assert(json_document.GetRoot().IsMap());
+    assert(json_document.GetRoot().IsDict());
 
-    const Dict all_reqs = json_document.GetRoot().AsMap();
+    const Dict all_reqs = json_document.GetRoot().AsDict();
 
-    /* FILL DB */
+    // FILL DB
     const Node& base_nd = all_reqs.at("base_requests"s);
     FillRequests fill_reqs(catalogue);
     fill_reqs.ProcessBaseRequests(base_nd.AsArray());
     
-    /* FILL RENDERER */ 
+    // FILL RENDERER
     const Node& render_nd = all_reqs.at("render_settings"s);
     // fill render settings & make projector
     renderer::RenderSettings settings;
-    fill_reqs.ProcessRenderRequests(render_nd.AsMap(), settings);
+    fill_reqs.ProcessRenderRequests(render_nd.AsDict(), settings);
     SphereProjector projector = MakeProjector(catalogue, settings);
     // make renderer -> make handler which renders map
     MapRenderer renderer(settings, projector);
 
-    /* HANDLE STAT REQUESTS */
+    // HANDLE STAT REQUESTS
     const Node& stat_nd = all_reqs.at("stat_requests"s);
-    StatRequests stat_reqs(catalogue, renderer);
-    // stat_reqs.RenderMap(output);  
+    Builder b{};
+    StatRequests stat_reqs(catalogue, renderer, b);
     stat_reqs.PrintJsonDocument(stat_nd.AsArray(), output);
 }
+
 
 } // json_reader

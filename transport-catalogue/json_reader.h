@@ -1,18 +1,19 @@
 #pragma once
 #include <algorithm>
-#include <cassert>
 #include <deque>
+#include <cassert>
 #include <iostream>
-#include <set>
-#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include <string_view>
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
+#include <set>
 
 #include "geo.h"
 #include "json.h"
+#include "json_builder.h"
 #include "domain.h"
 #include "transport_catalogue.h"
 #include "request_handler.h"
@@ -42,9 +43,9 @@ class FillRequests {
 public:
     FillRequests(t_c::TransportCatalogue& db);
 
-    void ProcessBaseRequests(const json::Array& arr_reqs);
-    void ProcessRenderRequests(const json::Dict& render_settings
-                                    , renderer::RenderSettings& settings);
+    void ProcessBaseRequests(const json::Array&);
+    void ProcessRenderRequests(const json::Dict&
+                                    , renderer::RenderSettings&);
 
     using RoadDistances = const std::unordered_map<std::string, double>;
 private:
@@ -52,25 +53,26 @@ private:
     std::deque<BusData> bus_requests_;
     t_c::TransportCatalogue& db_;
 
-    void LoadBusReq(const json::Dict& req);
-    void LoadStopReq(const json::Dict& req);
+    void LoadBusReq(const json::Dict&);
+    void LoadStopReq(const json::Dict&);
     
-    void ApplyDistances(domain::Stop& from_stop , RoadDistances& road_distances);
+    void ApplyDistances(domain::Stop&, RoadDistances&);
 };
 
 
 class StatRequests : public RequestHandler {
 public:
-    StatRequests(const t_c::TransportCatalogue& db
-                    , const renderer::MapRenderer& renderer);
-    void PrintJsonDocument(const json::Array& arr_reqs, std::ostream& output);
+    StatRequests(const t_c::TransportCatalogue&
+                    , const renderer::MapRenderer&, json::Builder&);
+    void PrintJsonDocument(const json::Array&, std::ostream&);
 
 private:
-    json::Node HandleBusRequest(const json::Dict& req);
-    json::Node HandleStopRequest(const json::Dict& req);
-    json::Node HandleMapRequest(const json::Dict& req);
+    json::Builder& builder_;
+    void HandleBusRequest(const json::Dict&);
+    void HandleStopRequest(const json::Dict&);
+    void HandleMapRequest(const json::Dict&);
 };
 
-void LoadJSON(std::istream& input, std::ostream& output, t_c::TransportCatalogue& catalogue);
+void LoadJSON(std::istream&, std::ostream&, t_c::TransportCatalogue&);
 
 } // json_reader

@@ -2,7 +2,6 @@
 
 using namespace domain;
 
-/* --------------- RequestHandler --------------- */
 RequestHandler::RequestHandler(const t_c::TransportCatalogue& db 
                     , const renderer::MapRenderer& renderer)
     : db_(db), renderer_(renderer) {
@@ -66,6 +65,19 @@ std::set<std::string_view> GetBusNames(const std::unordered_map<std::string_view
     }
     return names;
 }
+
+// template <typename DrawableIterator>
+// void DrawMap(DrawableIterator begin, DrawableIterator end, svg::ObjectContainer& target) {
+//     for (auto it = begin; it != end; ++it) {
+//         it->Draw(target);
+//     }
+// }
+
+// template <typename Container>
+// void DrawMap(const Container& container, svg::ObjectContainer& target) {
+//     using namespace std;
+//     DrawMap(begin(container), end(container), target);
+// }
 
 std::vector<Stop*> GetStops(const std::unordered_map<std::string_view, Bus*>& buses
                             , const std::unordered_map<std::string_view, Stop*>& stops) {

@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <vector>
@@ -105,14 +106,18 @@ public:
     MapRenderer(const RenderSettings& set, const SphereProjector& proj);
 
     using BusesMapRef = const std::unordered_map<std::string_view, domain::Bus*>&;
+    
     void MakeRoadsLayot(BusesMapRef buses
             , const std::set<std::string_view>& sorted_names
             , svg::ObjectContainer& doc) const;
+
     void MakeBusNamesLayot(BusesMapRef buses
             , const std::set<std::string_view>& sorted_names
             , svg::ObjectContainer& doc) const;
+
     void MakeCirclesLayot(std::vector<domain::Stop*> stops
             , svg::ObjectContainer& doc) const;
+
     void MakeStopNamesLayot(std::vector<domain::Stop*> stops
             , svg::ObjectContainer& doc) const;
 

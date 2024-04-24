@@ -18,15 +18,18 @@
 
 class RequestHandler {
 public:
+    // MapRenderer понадобится в следующей части итогового проекта
     RequestHandler(const t_c::TransportCatalogue& db, const renderer::MapRenderer& renderer);
     virtual ~RequestHandler() = default;
 
+    // Возвращает информацию о маршруте (запрос Bus)
     std::optional<domain::BusStat> GetBusStat(const std::string_view& bus_name) const;
 
     void Method() {
         domain::Stop stop = {"1", {12.32, 32.23332}};
     }
 
+    // Возвращает маршруты, проходящие через
     std::optional<const std::unordered_set<domain::Bus*>*>
     GetBusesByStop(const std::string_view& stop_name) const;
 

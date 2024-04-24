@@ -29,6 +29,7 @@ void Document::Render(std::ostream& out) const {
 
 
 // ---------- Circle ------------------
+
 void Circle::RenderObject(const RenderContext& context) const {
     auto& out = context.out;
     out << "<circle cx=\""sv << center_.x << "\" cy=\""sv << center_.y << "\" "sv;
@@ -49,6 +50,7 @@ Circle& Circle::SetRadius(double radius)  {
 
 
 // ---------- Polyline ------------------
+
 void Polyline::RenderObject(const RenderContext& context) const {
     auto& out = context.out;
     out << "<polyline points=\""sv;
@@ -70,7 +72,8 @@ Polyline& Polyline::AddPoint(Point point) {
     return *this;
 }
 
-// ---------- Text -----------------
+// ---------- Text ------------------
+
 void Text::RenderObject(const RenderContext& context) const {
     auto& out = context.out;
     out << "<text"sv;
