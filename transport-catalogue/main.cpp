@@ -7,10 +7,10 @@ using namespace std;
 using namespace t_c;
 
 int main() {
-    // ifstream input_file("./input/input.json");
-    // ofstream output_file("./output/out.svg");
+    ifstream input_file("./input/input.json");
+    ofstream output_file("./output/out.svg");
     TransportCatalogue catalogue;
-    // json_reader::LoadJSON(input_file, output_file, catalogue);
+    json_reader::LoadJSON(input_file, output_file, catalogue);
     // cout << "hi\n";
-    json_reader::LoadJSON(cin, cout, catalogue);
+    // json_reader::LoadJSON(cin, cout, catalogue);
 }

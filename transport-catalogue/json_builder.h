@@ -27,13 +27,17 @@ private:
     std::vector<std::string> key_stack_;
     Commands last_cmd = Commands::NONE;
 
+    void AddToArray(Node& container_node, std::unique_ptr<Node>&& value_ptr);
+    void AddToDict(Node& container_node, const Node&& value);
+    void EndContainer();
+
 public:
-    struct ValueArrayContext;
-    struct ValueDictContext;
     struct DictItemContext;
     
-    struct DictInitContext { // after StartDict
+    class DictNextElementContext { // after StartDict
         Builder& builder;
+    public:
+        DictNextElementContext(Builder& b) : builder(b) {}
         DictItemContext Key(const std::string& key) {
             return DictItemContext{builder.Key(key)};
         }
@@ -42,57 +46,50 @@ public:
         }
     };
 
-    struct ArrayInitContext { // after StartArray
+    class ArrayNextElementContext { // after StartArray
         Builder& builder;
-        ValueArrayContext Value(const Node::Value& value) {
-            return ValueArrayContext{builder.Value(value)};
+    public:
+        ArrayNextElementContext(Builder& b) : builder(b) {}
+        ArrayNextElementContext Value(const Node::Value& value) {
+            return ArrayNextElementContext{builder.Value(value)};
         }
-        DictInitContext StartDict() {
-            return DictInitContext{builder.StartDict()};
+        DictNextElementContext StartDict() {
+            return DictNextElementContext{builder.StartDict()};
         }
-        ArrayInitContext StartArray() {
-            return ArrayInitContext{builder.StartArray()};
+        ArrayNextElementContext StartArray() {
+            return ArrayNextElementContext{builder.StartArray()};
         }
         Builder& EndArray() {
             return builder.EndArray();
         }
     };
 
-    struct DictItemContext { // after Key
+    class DictItemContext { // after Key
         Builder& builder;
-        ValueDictContext Value(const Node::Value& value) {
-            return ValueDictContext{builder.Value(value)};
+    public:
+        DictItemContext(Builder& b) : builder(b) {}
+        DictNextElementContext Value(const Node::Value& value) {
+            return DictNextElementContext{builder.Value(value)};
         }
-        DictInitContext StartDict() {
-            return DictInitContext{builder.StartDict()};
+        DictNextElementContext StartDict() {
+            return DictNextElementContext{builder.StartDict()};
         }
-        ArrayInitContext StartArray() {
-            return ArrayInitContext{builder.StartArray()};
+        ArrayNextElementContext StartArray() {
+            return ArrayNextElementContext{builder.StartArray()};
         }
-    };
-
-    // after value in array
-    struct ValueArrayContext : public ArrayInitContext {
-    };
-
-    // after value in dictionary
-    struct ValueDictContext : public DictInitContext {
     };
 
     Builder();
 
-    void AddToArray(Node& container_node, std::unique_ptr<Node>&& value_ptr);
-    void AddToDict(Node& container_node, Node& value);
-
-    ArrayInitContext StartArray();
+    ArrayNextElementContext StartArray();
     Builder& EndArray();
 
-    DictInitContext StartDict();
+    DictNextElementContext StartDict();
     Builder& EndDict();
 
-    DictItemContext Key(const std::string& key);
+    DictItemContext Key(std::string key);
 
-    Builder& Value(const Node::Value& value);
+    Builder& Value(Node::Value value);
 
     Node& Build();
 };

@@ -11,9 +11,9 @@ Builder::Builder() = default;
 
 void Builder::AddToArray(Node& container_node, std::unique_ptr<Node>&& value_ptr) {
     Node::Value& parent_arr = container_node.GetValue();
-    std::get<Array>(parent_arr).push_back(*value_ptr);
+    std::get<Array>(parent_arr).push_back(std::move(*value_ptr));
 }
-void Builder::AddToDict(Node& container_node, Node& value) {
+void Builder::AddToDict(Node& container_node, const Node&& value) {
     Dict& dict = std::get<Dict>(container_node.GetValue());
 
     if (key_stack_.empty()) {
@@ -24,11 +24,31 @@ void Builder::AddToDict(Node& container_node, Node& value) {
     if (dict.count(last_added_key)) {
         throw std::logic_error("Value: element with the key already exists"s);
     }
-    dict.insert({last_added_key, value});
+    dict[last_added_key] = std::move(value);
     key_stack_.pop_back();
 }
+void Builder::EndContainer() {
+    if (root_.has_value() || nodes_stack_.empty()) {
+        throw std::logic_error("EndContainer: completion is not possible"s);
+    }
+    std::unique_ptr<Node> current_ptr = std::move(nodes_stack_.back());
 
-Builder::ArrayInitContext Builder::StartArray() {
+    nodes_stack_.pop_back();
+    if (nodes_stack_.size() != 0) {
+        Node& parent_node = *nodes_stack_.back();
+        if (parent_node.IsArray()) {
+            AddToArray(parent_node, std::move(current_ptr));
+        } else if (parent_node.IsDict()) {
+            AddToDict(parent_node, std::move(*current_ptr));
+        } else {
+            throw std::logic_error("EndContainer: unrecognized type of parent"s);
+        }
+    } else {
+        root_ = std::move(*current_ptr);
+    }
+}
+
+Builder::ArrayNextElementContext Builder::StartArray() {
     if (root_.has_value() && nodes_stack_.empty()) {
         throw std::logic_error("StartArray: trying to add the second element without container (as array)"s);
     }
@@ -38,38 +58,21 @@ Builder::ArrayInitContext Builder::StartArray() {
         }
     }
 
-    nodes_stack_.emplace_back(new Node(Array{}));
+    nodes_stack_.emplace_back(std::make_unique<Node>(Array{}));
 
     last_cmd = Commands::START_ARRAY;
-    return ArrayInitContext{*this};
+    return ArrayNextElementContext{*this};
 }
 
 Builder& Builder::EndArray() {
-    if (root_.has_value() || nodes_stack_.empty() || !nodes_stack_.back()->IsArray()) {
-        throw std::logic_error("err: array completion is not possible"s);
-    }
-
-    std::unique_ptr<Node> current_arr_ptr = std::move(nodes_stack_.back());
-    nodes_stack_.pop_back();
-    if (nodes_stack_.size() != 0) {
-        Node& parent_node = *nodes_stack_.back();
-        if (parent_node.IsArray()) {
-            AddToArray(parent_node, std::move(current_arr_ptr));
-        } else if (parent_node.IsDict()) {
-            AddToDict(parent_node, *current_arr_ptr);
-        } else {
-            throw std::logic_error("EndArray: unrecognized type of parent"s);
-        }
-    } else {
-        root_ = *current_arr_ptr;
-    }
+    EndContainer();
 
     last_cmd = Commands::END_ARRAY;
     return *this;
 }
 
 
-Builder::DictInitContext Builder::StartDict() {
+Builder::DictNextElementContext Builder::StartDict() {
     if (root_.has_value() && nodes_stack_.empty()) {
         throw std::logic_error("StartDict: trying to add a second element without container (as dictionary)"s);
     }
@@ -79,38 +82,21 @@ Builder::DictInitContext Builder::StartDict() {
         }
     }
 
-    nodes_stack_.emplace_back(new Node(Dict{}));
-    
+    nodes_stack_.emplace_back(std::make_unique<Node>(Dict{}));
+
     last_cmd = Commands::START_DICT;
-    return DictInitContext{*this};
+    return DictNextElementContext{*this};
 }
 
 Builder& Builder::EndDict() {
-    if (root_.has_value() || nodes_stack_.empty() || !nodes_stack_.back()->IsDict()) {
-        throw std::logic_error("EndDict: dict completion is not possible"s);
-    }
-
-    std::unique_ptr<Node> current_dict_ptr = std::move(nodes_stack_.back());
-    nodes_stack_.pop_back();
-    if (nodes_stack_.size() != 0) {
-        Node& parent_node = *nodes_stack_.back();
-        if (parent_node.IsArray()) {
-            AddToArray(parent_node, std::move(current_dict_ptr));
-        } else if (parent_node.IsDict()) {
-            AddToDict(parent_node, *current_dict_ptr);
-        } else {
-            throw std::logic_error("EndDict: unrecognized type of parent"s);
-        }
-    } else {
-        root_ = *current_dict_ptr;
-    }
+    EndContainer();
 
     last_cmd = Commands::END_DICT;
     return *this;
 }
 
 
-Builder::DictItemContext Builder::Key(const std::string& key) {
+Builder::DictItemContext Builder::Key(std::string key) {
     if (nodes_stack_.empty()) {
         throw std::logic_error("Key: trying to add the key without container"s);
     } else if (!nodes_stack_.back()->IsDict()) {
@@ -120,7 +106,7 @@ Builder::DictItemContext Builder::Key(const std::string& key) {
     } else if (last_cmd == Commands::START_ARRAY) {
         throw std::logic_error("Key: trying to add the key in array"s);
     } else {
-        key_stack_.push_back(key);
+        key_stack_.push_back(std::move(key));
     }
 
     last_cmd = Commands::KEY;
@@ -128,16 +114,16 @@ Builder::DictItemContext Builder::Key(const std::string& key) {
 }
 
 
-Builder& Builder::Value(const Node::Value& value) {
+Builder& Builder::Value(Node::Value value) {
     if (nodes_stack_.empty()) {
         if (root_.has_value()) {
             throw std::logic_error("Value: trying to add the second element without container (as value)"s);
         }
-        root_ = value;
+        root_ = std::move(value);
 
     } else if (nodes_stack_.back()->IsArray()) {
         Node::Value& parent_arr = nodes_stack_.back()->GetValue();
-        std::get<Array>(parent_arr).emplace_back(value);
+        std::get<Array>(parent_arr).emplace_back(std::move(value));
 
     } else if (nodes_stack_.back()->IsDict()) {
         if (last_cmd != Commands::KEY) {
@@ -145,8 +131,7 @@ Builder& Builder::Value(const Node::Value& value) {
         }
 
         Node& parent_dict = *nodes_stack_.back();
-        Node node_value = Node(value);
-        AddToDict(parent_dict, node_value);
+        AddToDict(parent_dict, std::move(value));
 
     } else {
         throw std::logic_error("Value: unrecognized type of parent"s);
