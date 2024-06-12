@@ -2,9 +2,12 @@
 
 using namespace domain;
 
-RequestHandler::RequestHandler(const t_c::TransportCatalogue& db 
-                    , const renderer::MapRenderer& renderer)
-    : db_(db), renderer_(renderer) {
+RequestHandler::RequestHandler (
+        const t_c::TransportCatalogue& db,
+        const renderer::MapRenderer& renderer,
+        const TransportRouter& router
+    )
+    : db_(db), renderer_(renderer), router_(router) {
 }
 
 struct StopPtrHasher {
@@ -66,19 +69,6 @@ std::set<std::string_view> GetBusNames(const std::unordered_map<std::string_view
     return names;
 }
 
-// template <typename DrawableIterator>
-// void DrawMap(DrawableIterator begin, DrawableIterator end, svg::ObjectContainer& target) {
-//     for (auto it = begin; it != end; ++it) {
-//         it->Draw(target);
-//     }
-// }
-
-// template <typename Container>
-// void DrawMap(const Container& container, svg::ObjectContainer& target) {
-//     using namespace std;
-//     DrawMap(begin(container), end(container), target);
-// }
-
 std::vector<Stop*> GetStops(const std::unordered_map<std::string_view, Bus*>& buses
                             , const std::unordered_map<std::string_view, Stop*>& stops) {
     std::set<std::string_view> stop_names;
@@ -111,4 +101,14 @@ void RequestHandler::RenderMap(std::ostream& output) const {
     renderer_.MakeStopNamesLayot(stops, doc);
 
     doc.Render(output);
+}
+
+std::optional<graph::Router<double>::RouteInfo> RequestHandler::FindRoute(
+                            std::string_view stop_from,
+                            std::string_view stop_to) const {
+    return router_.FindRoute(stop_from, stop_to);
+}
+
+graph::Edge<double> RequestHandler::GetEdge(int id) const {
+    return router_.GetGraph().GetEdge(id);
 }

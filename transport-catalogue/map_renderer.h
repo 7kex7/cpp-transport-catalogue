@@ -83,6 +83,7 @@ private:
 
 struct RenderSettings {
     RenderSettings() = default;
+
     double width = 0;
     double height = 0;
     double padding = 0;

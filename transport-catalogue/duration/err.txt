@@ -1,0 +1,4 @@
+Append random: 14 ms
+Reverse: 994 ms
+Counting: 2 ms
+Total: 1011 ms

@@ -19,20 +19,22 @@ namespace t_c {
 class TransportCatalogue {
 public:
     TransportCatalogue();
-    TransportCatalogue(const TransportCatalogue& catalogue);
-    TransportCatalogue(TransportCatalogue&& catalogue);
+    TransportCatalogue(const TransportCatalogue&);
+    TransportCatalogue(TransportCatalogue&&);
     ~TransportCatalogue();
 
-    void AddDistance(domain::Stop* from_stop, domain::Stop* to_stop, const double distance);
-    double FindDistance(domain::Stop* first, domain::Stop* second) const;
+    void AddDistance(domain::Stop* fr, domain::Stop* to, const double);
+    double FindDistance(domain::Stop* fr, domain::Stop* to) const;
 
-    void AddStop(const domain::Stop& stop);
-    domain::Stop& FindStop(const std::string_view& stopnm) const;
+    void AddStop(const domain::Stop&);
+    domain::Stop& FindStop(const std::string_view&) const;
     const std::unordered_map<std::string_view, domain::Stop*>& GetAllStops() const;
+    size_t GetStopsCount() const;
 
-    void AddBus(const domain::Bus& bus);
-    domain::Bus& FindBus(const std::string_view& bus) const;
+    void AddBus(const domain::Bus&);
+    domain::Bus& FindBus(const std::string_view&) const;
     const std::unordered_map<std::string_view, domain::Bus*>& GetAllBuses() const;
+
 
     class DistanceHasher {
     static const size_t N = 576UL;

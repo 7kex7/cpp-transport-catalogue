@@ -19,6 +19,7 @@ struct TransportCatalogue::Impl {
     std::unordered_map<std::pair<Stop*, Stop*>, double, DistanceHasher> distances_;
 };
 
+
 TransportCatalogue::TransportCatalogue()
     : impl_(std::make_unique<Impl>()) {}
 
@@ -47,12 +48,17 @@ void TransportCatalogue::AddDistance(Stop* from_stop, Stop* to_stop, const doubl
     impl_->distances_[{from_stop, to_stop}] = std::move(distance);
 }
 
+// указанное расстояние double между двумя остановками. Если не найдено: -1
 double TransportCatalogue::FindDistance(Stop* first, Stop* second) const {
     auto distance = impl_->distances_.find({first, second});
-    if (distance == impl_->distances_.end()) {
-        return impl_->distances_.at({second, first});
+    if (distance != impl_->distances_.end()) {
+        return distance->second;
     }
-    return distance->second;
+    auto reverse_distance = impl_->distances_.find({second, first});
+    if (reverse_distance != impl_->distances_.end()) {
+        return reverse_distance->second;
+    }
+    return -1;
 }
 
 /* ---------------- Stops ---------------- */
@@ -75,6 +81,10 @@ Stop& TransportCatalogue::FindStop(const std::string_view& stopnm) const {
 const std::unordered_map<std::string_view, Stop*>& 
 TransportCatalogue::GetAllStops() const {
     return impl_->stopname_to_stop_;
+}
+
+size_t TransportCatalogue::GetStopsCount() const {
+    return impl_->stopname_to_stop_.size();
 }
 
 /* ---------------- Buses ---------------- */

@@ -12,16 +12,18 @@ FillRequests::FillRequests(t_c::TransportCatalogue& db)
     : db_(db) {
 }
 
-StatRequests::StatRequests(const t_c::TransportCatalogue& db
-                    , const renderer::MapRenderer& renderer, Builder& builder)
-    : RequestHandler(db, renderer), builder_(builder) {
+StatRequests::StatRequests(
+                            const t_c::TransportCatalogue& db,
+                            const renderer::MapRenderer& renderer,
+                            const TransportRouter& router
+    ) : RequestHandler(db, renderer, router), builder_() {
 }
 
-void FillRequests::LoadBusReq(const Dict& req) {
-    const std::string name = req.at("name").AsString();
-    const bool is_round = req.at("is_roundtrip").AsBool();
-    
-    const Array& stops_node = req.at("stops").AsArray();
+void FillRequests::LoadBusRequest(const Dict& req) {
+    const std::string name = req.at("name"s).AsString();
+    const bool is_round = req.at("is_roundtrip"s).AsBool();
+
+    const Array& stops_node = req.at("stops"s).AsArray();
     std::vector<std::string> stops_arr;
     stops_arr.reserve(stops_node.size()); 
     for (const Node& nd : stops_node) {
@@ -35,15 +37,16 @@ void FillRequests::LoadBusReq(const Dict& req) {
 
     bus_requests_.push_back(BusData{name, stops_deq, is_round});
 }
+ 
+void FillRequests::LoadStopRequest(const Dict& req) {
 
-void FillRequests::LoadStopReq(const Dict& req) {
-    const std::string name = req.at("name").AsString();
-    const double latitude = req.at("latitude").AsDouble();
-    const double longitude = req.at("longitude").AsDouble();
+    const std::string name = req.at("name"s).AsString();
+    const double latitude = req.at("latitude"s).AsDouble();
+    const double longitude = req.at("longitude"s).AsDouble();
 
     StopData stop{name, latitude, longitude};
 
-    const Dict dists_dict = req.at("road_distances").AsDict();
+    const Dict dists_dict = req.at("road_distances"s).AsDict();
     for (const auto& [stop_name, dist] : dists_dict) {
         stop.road_distances.insert({stop_name, dist.AsDouble()});
     }
@@ -52,7 +55,6 @@ void FillRequests::LoadStopReq(const Dict& req) {
 }
 
 void FillRequests::ApplyDistances(Stop& from_stop , RoadDistances& road_distances) {
-
     for (const auto& [to_name, dist] : road_distances) {
         Stop* const to_stop = &db_.FindStop(to_name);
         db_.AddDistance(&from_stop, to_stop, dist);
@@ -60,15 +62,16 @@ void FillRequests::ApplyDistances(Stop& from_stop , RoadDistances& road_distance
 }
 
 void FillRequests::ProcessBaseRequests(const Array& arr_reqs) {
+
     for (const Node& node_map : arr_reqs) {
 
-        const std::string type = node_map.AsDict().at("type").AsString();
-        if (type == "Bus") {
-            LoadBusReq(node_map.AsDict());
-        } else if (type == "Stop") {
-            LoadStopReq(node_map.AsDict());
+        const std::string type = node_map.AsDict().at("type"s).AsString();
+        if (type == "Bus"s) {
+            LoadBusRequest(node_map.AsDict());
+        } else if (type == "Stop"s) {
+            LoadStopRequest(node_map.AsDict());
         } else {
-            throw std::invalid_argument("wrong request type");
+            throw std::invalid_argument("wrong request type"s);
         }
     }
 
@@ -87,7 +90,7 @@ void FillRequests::ProcessBaseRequests(const Array& arr_reqs) {
         for (const auto& stopnm : bus_data.stops) {
             stops_.push_back(&db_.FindStop(stopnm));
         }
-        db_.AddBus({bus_data.name, stops_, bus_data.is_roundtrip});
+        db_.AddBus(Bus{bus_data.name, stops_, bus_data.is_roundtrip});
     }
 }
 
@@ -150,9 +153,13 @@ void FillRequests::ProcessRenderRequests(const Dict& render_settings
     }
 }
 
+void FillRequests::ProcessRoutingSettings(RoutingSettings& settings, const json::Dict& req) {
+    settings.wait_time = req.at("bus_wait_time"s).AsDouble();
+    settings.velocity = req.at("bus_velocity"s).AsDouble();
+}
+
 // stat requests
 void StatRequests::HandleBusRequest(const Dict& req) {
-    using namespace std::literals;
 
     builder_.StartDict();
     
@@ -182,7 +189,6 @@ std::set<std::string> GetSortedBuses(const std::unordered_set<Bus*> routes) {
 }
 
 void StatRequests::HandleStopRequest(const Dict& req) {
-    using namespace std::literals;
 
     builder_.StartDict();
 
@@ -206,11 +212,10 @@ void StatRequests::HandleStopRequest(const Dict& req) {
 }
 
 void StatRequests::HandleMapRequest(const json::Dict& req) {
-    using namespace std::literals;
 
     builder_.StartDict();
 
-    const int id = req.at("id").AsInt();
+    const int id = req.at("id"s).AsInt();
     builder_.Key("request_id"s).Value(id);
 
     std::ostringstream os;
@@ -220,17 +225,69 @@ void StatRequests::HandleMapRequest(const json::Dict& req) {
     builder_.EndDict();
 }
 
+void StatRequests::HandleRouteRequest(const json::Dict& req) {
+
+    builder_.StartDict();
+
+    const int id = req.at("id"s).AsInt();
+    builder_.Key("request_id"s).Value(id);
+
+    std::string stop_from = req.at("from").AsString();
+    std::string stop_to = req.at("to").AsString();
+    auto route_data = FindRoute(stop_from, stop_to);
+
+    if (!route_data.has_value()) {
+        builder_.Key("error_message").Value("not found");
+    } else {
+        json::Array items;
+        auto route = route_data.value();
+
+        items.reserve(route.edges.size());
+
+        double total_time = 0;
+        for (const auto& edge_id: route.edges) {
+            const graph::Edge<double> edge = GetEdge(edge_id);
+            
+            json::Builder route_item{};
+            route_item.StartDict()
+                                 .Key("time"s).Value(edge.weight);
+            if (edge.is_wait) {
+                route_item
+                          .Key("type"s).Value("Wait"s)
+                          .Key("stop_name"s).Value(edge.name);
+            } else {
+                route_item
+                          .Key("type"s).Value("Bus"s)
+                          .Key("bus"s).Value(edge.name)
+                          .Key("span_count"s).Value(static_cast<int>(edge.span));
+            }
+            route_item.EndDict();
+            items.emplace_back(route_item.Build());
+
+            total_time += edge.weight;
+        }
+        builder_
+                .Key("total_time"s).Value(total_time)
+                .Key("items"s).Value(items);
+    }
+
+    builder_.EndDict();
+}
+
 void StatRequests::PrintJsonDocument(const Array& arr_reqs, std::ostream& output) {
-    using namespace std::literals;
     builder_.StartArray();
     for (const Node& req : arr_reqs) {
-        const std::string type = req.AsDict().at("type").AsString();
+        const json::Dict& request = req.AsDict();
+        const std::string type = request.at("type").AsString();
+
         if (type == "Bus"s) {
-            HandleBusRequest(req.AsDict());
+            HandleBusRequest(request);
         } else if (type == "Stop"s) {
-            HandleStopRequest(req.AsDict());
+            HandleStopRequest(request);
         } else if (type == "Map"s) {
-            HandleMapRequest(req.AsDict());
+            HandleMapRequest(request);
+        } else if (type == "Route"s) {
+            HandleRouteRequest(request);
         } else {
             throw std::invalid_argument("wrong request type");
         }
@@ -271,26 +328,24 @@ void LoadJSON(std::istream& input, std::ostream& output, TransportCatalogue& cat
 
     const Dict all_reqs = json_document.GetRoot().AsDict();
 
-    // FILL DB
-    const Node& base_nd = all_reqs.at("base_requests"s);
+    const Array& base_nd = all_reqs.at("base_requests"s).AsArray();
     FillRequests fill_reqs(catalogue);
-    fill_reqs.ProcessBaseRequests(base_nd.AsArray());
-    
-    // FILL RENDERER
-    const Node& render_nd = all_reqs.at("render_settings"s);
-    // fill render settings & make projector
+    fill_reqs.ProcessBaseRequests(base_nd);
+
+    const Dict& routing_settings_nd = all_reqs.at("routing_settings"s).AsDict();
+    RoutingSettings routing_settings;
+    fill_reqs.ProcessRoutingSettings(routing_settings, routing_settings_nd);
+    TransportRouter router(routing_settings, catalogue);
+
+    const Dict& render_nd = all_reqs.at("render_settings"s).AsDict();
     renderer::RenderSettings settings;
-    fill_reqs.ProcessRenderRequests(render_nd.AsDict(), settings);
+    fill_reqs.ProcessRenderRequests(render_nd, settings);
     SphereProjector projector = MakeProjector(catalogue, settings);
-    // make renderer -> make handler which renders map
     MapRenderer renderer(settings, projector);
 
-    // HANDLE STAT REQUESTS
-    const Node& stat_nd = all_reqs.at("stat_requests"s);
-    Builder b{};
-    StatRequests stat_reqs(catalogue, renderer, b);
-    stat_reqs.PrintJsonDocument(stat_nd.AsArray(), output);
+    const Array& stat_nd = all_reqs.at("stat_requests"s).AsArray();
+    StatRequests stat_reqs(catalogue, renderer, router);
+    stat_reqs.PrintJsonDocument(stat_nd, output);
 }
-
 
 } // json_reader
